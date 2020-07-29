@@ -1,0 +1,86 @@
+paths:
+  /stream/{cameraId}:
+    get:
+      tags: [stream]
+      summary: Get video device stream configuration
+      responses:
+        200:
+          $ref: "#/components/responses/streamSuccess"
+  /stream/{cameraId}/format:
+    put:
+      tags: [stream]
+      summary: Configure the video device output format
+      parameters:
+        - in: body
+          name: format
+          description: set the output format for a video device (eg h264, 1080p, 30fps)
+          schema:
+            $ref: "#/components/schemas/cameraFormat"
+      responses:
+        200:
+          $ref: "#/components/responses/streamSuccess"
+  /stream/{cameraId}/add:
+    put:
+      tags: [stream]
+      description: Add a stream configuration to the selected video device
+      parameters:
+        - in: path
+          name: cameraId
+          description: the video device to add a stream to
+        - in: body
+          name: streamConfiguration
+          description: the stream configuration to add
+          schema:
+            $ref: "#/components/schemas/streamConfiguration"
+      responses:
+        200:
+          $ref: "#/components/responses/streamSuccess"
+  /stream/{cameraId}/remove:
+    put:
+      tags: [stream]
+      description: Remove a stream configuration from the selected video device
+      parameters:
+        - in: path
+          name: cameraId
+          description: the video device to remove a stream from
+        - in: query
+          name: index
+          description: the index of the stream configuration to remove
+      responses:
+        200:
+          $ref: "#/components/responses/streamSuccess"
+components:
+  schemas:
+    streamConfiguration:
+      type: object
+      properties:
+        type:
+          description: The video stream type
+          type: string
+          enum: [ "udp", "rtsp", "file" ]
+          example: "udp"
+        url:
+          description: Where the stream data is sent, this may be read only in the case of RTSP
+          type: string
+          example: "192.168.2.1:5600"
+    cameraConfiguration:
+      type: object
+      properties:
+        device:
+          description: the video output format for the video device (eg h264, 1080p, 30fps)
+          type: string
+          example: "/dev/video0"
+        format:
+          $ref: "#/components/schemas/cameraFormat"
+        streams:
+          type: array
+          items:
+            $ref: "#/components/schemas/streamConfiguration"
+  responses:
+    streamSuccess:
+      description: success
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/cameraConfiguration"
+

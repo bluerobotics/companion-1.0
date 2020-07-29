@@ -1,135 +1,456 @@
 paths:
-  /camera/configuration:
-    post:
-      tags:
-        - camera
-      summary: Set a new GStreamer pipeline to use for a specific camera
-      description: Set a new GStreamer pipeline to use. It should start with a 'h264parse'
-        element.
-      operationId: writePipeline
-      responses:
-        200:
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties:
-                  schema:
-                    $ref: "#/components/schemas/cameraPipeline"
-              example:
-                /dev/video0: cameraPipeline
-        500:
-          description: Error writing pipeline
+  /camera/list/:
     get:
       tags:
         - camera
-      summary: Get all gstreamer pipelines
-      operationId: readPipelines
+      summary: list video devices
+      description: List v4l2 devices and associated attributes. See https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-querycap.html and struct v4l2_capability
       responses:
         200:
-          description: successful operation
+          description: success
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties:
-                  schema:
-                    $ref: "#/components/schemas/cameraPipeline"
-              example:
-                /dev/video0: cameraPipeline
+                type: array
+                items:
+                  $ref: "#/components/schemas/deviceInformation"
+  /camera/{id}/formats:
+    get:
+      description: See https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-fmt.html and struct v4l2_fmtdesc
+      tags:
+        - camera
+      summary: get a list of supported formats for a camera
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                array:
+                items:
+                  $ref: "#/components/schemas/formatDescription"
         500:
-          description: Error writing pipeline
-
-  /camera/getV4L2cameras:
+          description: error
+  /camera/{id}/formats/{pixfmt}/framesizes:
+    get:
+      description: See https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-framesizes.html and struct v4l2_frmsizeenum
+      tags:
+        - camera
+      summary: get a list of supported formats for a camera
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+        - in: path
+          name: pixfmt
+          schema:
+            type: integer
+          required: true
+          description: The pixel format for which to query available frame sizes. This should match the `code` of one of the pixel formats returned by the /formats query
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                array:
+                items:
+                  $ref: "#/components/schemas/frameSizeEnum"
+        500:
+          description: error
+  /camera/{id}/formats/{pixfmt}/{width}/{height}/frameintervals:
+    get:
+      description: See https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-frameintervals.html and struct v4l2_frmivalenum
+      tags:
+        - camera
+      summary: get a list of supported frame intervals for a given pixelFormat, width, and height
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+        - in: path
+          name: pixfmt
+          schema:
+            type: integer
+          required: true
+          description: The pixel format for which to query available frame intervals. This should match the `code` of one of the pixel formats returned by the /formats query
+        - in: path
+          name: width
+          schema:
+            type: integer
+          required: true
+          description: The frame width for which to query available frame intervals. This should match the `width` of one of the frame sizes returned by the /framesizes query
+        - in: path
+          name: height
+          schema:
+            type: integer
+          required: true
+          description: The frame height for which to query available frameintervals. This should match the `height` of one of the frame sizes returned by the /framesizes query
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                array:
+                items:
+                  $ref: "#/components/schemas/frameIntervalEnum"
+        500:
+          description: error
+  /camera/{id}/format:
     get:
       tags:
         - camera
-      summary: Get a List of available cameras via the V4L2 interface
-      description: Get the GStreamer pipeline currently in use
-      operationId: readV4L2Cameras
+      summary: get the current camera format
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
       responses:
         200:
-          description: successful operation
+          description: success
           content:
             application/json:
               schema:
-                type: string
-                example: TO-DO
-        500:
-          description: Error getting cameras list
-  /camera/profiles:
+                $ref: "#/components/schemas/cameraFormat"
+    put:
+      tags:
+        - camera
+      summary: Check the validity of the desired camera format
+      description: See VIDIOC_TRY_FMT https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-g-fmt.html. Check if the desired camera format is valid. This operation may be performed while the video device is accessed by the video streaming service. To apply the format, it should be POSTed to the video service
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/cameraFormat"
+  /camera/{id}/controls:
     get:
+      description: See VIDIOC_QUERYCTRL https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-queryctrl.html
       tags:
         - camera
-      summary: Get a List of available cameras via the V4L2 interface
-      description: Get the GStreamer pipeline currently in use
-      operationId: readV4L2profiles
+      summary: Get available controls for the video device
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
       responses:
         200:
-          description: successful operation
+          description: success
           content:
             application/json:
               schema:
-                type: string
-                example: TO-DO
+                array:
+                items:
+                  $ref: "#/components/schemas/controlInformation"
         500:
-          description: Error reading profiles
-  /camera/V4l2Control:
+          description: error
+  /camera/{id}/control/{controlId}:
     get:
+      description: See VIDIOC_G_CTRL https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-g-ctrl.html
       tags:
         - camera
-      summary: Get a List of available V4L2 Controls for the current camera
-      description: Get the GStreamer pipeline currently in use
-      operationId: readV4L2controls
+      summary: Get the current value for a video device control
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+        - in: path
+          name: controlId
+          schema:
+            type: integer
+          required: true
+          description: The id of the video device control. This should match the `id` property of a `controlInformation` object returned from the /controls query.
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/controlValue"
+  /camera/{id}/control/{controlId}/{value}:
+    put:
+      description: See VIDIOC_S_CTRL https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-g-ctrl.html
+      tags:
+        - camera
+      summary: Set the value for a video device control
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: index of the video device path, eg 0 for /dev/video0
+        - in: path
+          name: controlId
+          schema:
+            type: integer
+          required: true
+          description: The id of the video device control. This should match the `id` property of a `controlInformation` object returned from the /controls query.
+        - in: path
+          name: value
+          schema:
+            type: integer
+          required: true
+          description: The value of the video device control. This should be in the allowed range specified by the `controlInformation` object returned from the /controls query.
       responses:
         200:
           description: successful operation
           content:
             application/json:
               schema:
-                type: string
-                example: TO-DO
-        500:
-          description: Error reading v4l2 controls
-    post:
-      tags:
-        - camera
-      summary: Get a List of available cameras via the V4L2 interface
-      description: Get the GStreamer pipeline currently in use
-      operationId: setV4L2Controls
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - id
-                - value
-              properties:
-                id:
-                  type: integer
-                value:
-                  type: string
-        description: The network to connect to.
-      responses:
-        200:
-          description: successful operation
+                $ref: "#/components/schemas/controlValue"
         500:
           description: Error setting control
-
+          content:
+            application/json:
+              properties:
+                error:
+                  type: string
+                  description: error message
+                  example: out of range, invalid control
 components:
   schemas:
-    cameraPipeline:
+    capabilities:
       type: object
       properties:
-        rtsp-pipeline:
+        code:
+          type: integer
+          example: 4096
+        caps:
+          type: array
+          items:
+            - type: string
+          example: [ "Video Capture", "Metadata Capture", "Streaming", "Extended Pix Format" ]
+    deviceInformation:
+      description: see https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-querycap.html and struct v4l2_capability
+      type: object
+      properties:
+        driver:
           type: string
-          enum: [custom, rtsp]
-        pipeline:
+          example: uvcvideo
+        description:
           type: string
-          example: |
-            ! h264parse
-            ! queue
-            ! rtph264pay config-interval=10 pt=96
-            ! udpsink host=192.168.2.255 port=5600
+          example: HD Pro Webcam C920
+        busInfo:
+          type: string
+          example: usb-0000:34:00.3-3.1.4
+        version:
+          type: string
+          example: 5.7.9
+        capabilities:
+          $ref: "#/components/schemas/capabilities"
+        deviceCapabilities:
+          $ref: "#/components/schemas/capabilities"
+        path:
+          type: string
+          example: /dev/video0
+    pixelFormat:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        fourcc:
+          type: string
+          example: 'H264'
+    formatDescription:
+      description: see https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-fmt.html and struct v4l2_fmtdesc
+      type: object
+      properties:
+        index:
+          type: integer
+          example: 0
+        type:
+          type: integer
+          example: 1
+        flags:
+          type: integer
+          example: 1
+        description:
+          type: string
+          example: 'YUV 4:2:2'
+        pixelFormat:
+          $ref: "#/components/schemas/pixelFormat"
+    frameSizeDiscrete:
+      type: object
+      properties:
+        width:
+          type: integer
+          example: 1920
+        height:
+          type: integer
+          example: 1080
+    frameSizeStepwise:
+      type: object
+      properties:
+        minWidth:
+          type: integer
+          example: 32
+        maxWidth:
+          type: integer
+          example: 1920
+        stepWidth:
+          type: integer
+          example: 1
+        minHeight:
+          type: integer
+          example: 32
+        maxHeight:
+          type: integer
+          example: 1080
+        stepHeight:
+          type: integer
+          example: 1
+    frameSizeEnum:
+      description: see https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-framesizes.html and struct v4l2_frmsizeenum
+      type: object
+      properties:
+        index:
+          type: integer
+          example: 0
+        pixelFormat:
+          $ref: "#/components/schemas/pixelFormat"
+        type:
+          description: see enum v4l2_frmsizetypes
+          type: integer
+          example: 0
+        frameSize:
+          type: object
+          oneOf:
+            - $ref: "#/components/schemas/frameSizeDiscrete"
+            - $ref: "#/components/schemas/frameSizeStepwise"
+    frameIntervalDiscrete:
+      type: object
+      properties:
+        numerator:
+          type: integer
+          example: 1
+        denominator:
+          type: integer
+          example: 30
+    frameIntervalStepwise:
+      type: object
+      properties:
+        min:
+          type: integer
+          example: 1
+        max:
+          type: integer
+          example: 30
+        step:
+          type: integer
+          example: 1
+    frameIntervalEnum:
+      description: see https://linuxtv.org/downloads/v4l-dvb-apis/userspace-api/v4l/vidioc-enum-frameintervals.html and struct v4l2_frmivalenum
+      properties:
+        index:
+          type: integer
+          example: 0
+        pixelFormat:
+          $ref: "#/components/schemas/pixelFormat"
+        width:
+          type: integer
+          example: 1920
+        height:
+          type: integer
+          example: 1080
+        type:
+          description: see v4l2_frmivaltypes
+          type: integer
+          example: 0
+        frameInterval:
+          oneOf:
+            - $ref: "#/components/schemas/frameIntervalDiscrete"
+            - $ref: "#/components/schemas/frameIntervalStepwise"
+    cameraFormat:
+      description: a specific camera format specifying encoding (pixformat), frame size, and frame interval
+      type: object
+      properties:
+        format:
+          $ref: "#/components/schemas/formatDescription"
+        frameSize:
+          $ref: "#/components/schemas/frameSizeDiscrete"
+        frameInterval:
+          $ref: "#/components/schemas/frameIntervalDiscrete"
+    controlValue:
+      description: See VIDIOC_G_CTRL, VIDIOC_S_CTRL, and struct v4l2_control https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-g-ctrl.html
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 0
+        value:
+          type: integer
+          example: 1
+    controlMenu:
+      description: See VIDIOC_QUERYMENU https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-queryctrl.html
+      type: object
+      properties:
+        id:
+          type: integer
+        index:
+          type: integer
+        name:
+          type: string
+        value:
+          type: integer
+      required: [id, index]
+          # this does not display correctly in the swagger ui, but is apparently the correct way
+      oneOf:
+        - required: [name]
+        - required: [value]
+    controlInformation:
+      description: See VIDIOC_QUERYCTRL https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/vidioc-queryctrl.html
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: integer
+        minimum:
+          type: integer
+        maximum:
+          type: integer
+        step:
+          type: integer
+        defaultValue:
+          type: integer
+        flags:
+          type: integer
+        menu:
+          description: This optional property is included for menu type controls to enumerate + describe the menu options
+          type: array
+          items:
+            $ref: "#/components/schemas/controlMenu"
+      required: [ id, type, minimum, maximum, step, defaultValue, flags ]
